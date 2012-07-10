@@ -1,3 +1,11 @@
+/*
+ * Copyright DotRow.com (c) 2012.
+ *
+ * Este programa se distribuye segun la licencia GPL v.2 o posteriores y no
+ * tiene garantias de ningun tipo. Puede obtener una copia de la licencia GPL o
+ * ponerse en contacto con la Free Software Foundation en http://www.gnu.org
+ */
+
 package com.dotrow.mail.server;
 /*
  * MailFilter.java
@@ -5,14 +13,16 @@ package com.dotrow.mail.server;
  * Created on 19 de junio de 2006, 18:11
  */
 
-import java.sql.*;
-import java.net.*;
-import java.io.*;
+import com.dotrow.mail.server.util.NSLookup;
+
+import java.sql.ResultSet;
+import java.sql.Statement;
+
 /**
  * Filtra los correos spam o por ip
  * @author Sergio Ceron Figueroa
  */
-public class MailServerFilter implements DatabaseInterface {
+public class MailServerFilter implements DatabaseConnection {
     
     private static MailServerFilter _instance = null;
     
@@ -56,7 +66,7 @@ public class MailServerFilter implements DatabaseInterface {
      * @param domain el dominio que debe coincidir con la ip en la resolucion inversa
      */
     protected boolean allowReciveMail( String ip, String domain ){
-        NSLookup nslu = NSLookup.getInstance();        
+        NSLookup nslu = NSLookup.getInstance();
         if( nslu.reverseLookup( ip ).indexOf( domain ) != 0 )
             return true;
         return false;
@@ -78,7 +88,7 @@ public class MailServerFilter implements DatabaseInterface {
                 if( rs.next() )
                     allow = false;
             }catch(Exception e){
-                log.debugServerThread( e, 0 );
+                log.debug(e, Logger.Level.ERROR);
             }
         }
         return allow;
@@ -89,7 +99,7 @@ public class MailServerFilter implements DatabaseInterface {
      * Actualiza el asentamiento de la base de datos por medio de la interface
      * @param st el asentamiento de la base de datos
      */
-    public void dbStatement(java.sql.Statement st) {
+    public void setStatement(java.sql.Statement st) {
         MailServerFilter.st = st;
     }
     

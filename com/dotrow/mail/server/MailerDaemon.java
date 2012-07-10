@@ -1,3 +1,11 @@
+/*
+ * Copyright DotRow.com (c) 2012.
+ *
+ * Este programa se distribuye segun la licencia GPL v.2 o posteriores y no
+ * tiene garantias de ningun tipo. Puede obtener una copia de la licencia GPL o
+ * ponerse en contacto con la Free Software Foundation en http://www.gnu.org
+ */
+
 package com.dotrow.mail.server;
 /*
  * MailerDaemon.java
@@ -5,14 +13,16 @@ package com.dotrow.mail.server;
  * Created on 16 de junio de 2006, 14:15
  */
 
-import java.util.*;
-import java.sql.*;
-import java.text.*;
+import java.sql.Statement;
+import java.text.Format;
+import java.text.MessageFormat;
+import java.text.SimpleDateFormat;
+import java.util.Vector;
 /**
  * Tarea que se encarga de distribuir los correos para enviar, lo que son errores o en espera
  * @author Sergio Ceron Figueroa
  */
-public class MailerDaemon extends Thread implements DatabaseInterface{
+public class MailerDaemon extends Thread implements DatabaseConnection {
     
     /** Instancia del logger */
     private Logger log = Logger.getInstance();
@@ -21,16 +31,16 @@ public class MailerDaemon extends Thread implements DatabaseInterface{
     private static MailerDaemon _instance = null;
     
     /** Vector que almacena los correos a enviar */
-    private static Vector MailsToSend = new Vector();
+    private static Vector<Email> mailsToSend = new Vector<Email>();
     
     /** Vector que almancena los correos en espera */
-    private static Vector MailsOnQueue = new Vector();
+    private static Vector<Email> mailsOnQueue = new Vector<Email>();
     
     /** Asentamiento de la base de datos */
-    private static Statement st = null;
+    private static Statement statement = null;
     
     /** Configuraciones del servidor */
-    private static Settings set = Settings.getInstance();
+    private static Settings settings = Settings.getInstance();
     
     /** Bandera que manipula el estado de la tarea */
     private boolean running = true;
@@ -52,24 +62,23 @@ public class MailerDaemon extends Thread implements DatabaseInterface{
     @Override
     public void run(){
         try{
-            log.debugServerThread("Mailer Daemon started", 2);
+            log.debug("Mailer Daemon started", Logger.Level.INFO);
             while( running ){
-                
-                if( MailsToSend.size() > 0 )
-                    for( int mts = 0; mts < MailsToSend.size(); mts ++ ){
-                        Sender MailTS = new Sender();
-                        MailTS.start();
-                        MailTS.setMessage( ( Message )MailsToSend.get( mts ) );
-                        MailsToSend.remove( mts );
+                if( mailsToSend.size() > 0 )
+                    for( int mts = 0; mts < mailsToSend.size(); mts ++ ){
+                        Sender sender = new Sender();
+                        sender.start();
+                        sender.setMessage(mailsToSend.get(mts));
+                        mailsToSend.remove( mts );
                     }
                 
-                if( MailsOnQueue.size() > 0 )
-                    for( int moq = 0; moq < MailsOnQueue.size(); moq ++ ){
-                        Sender MailTS = new Sender();
-                        MailTS.setQueueTimeout( set.getIntKey( "Queue.timeout" ) );
-                        MailTS.setMessage( ( Message )MailsOnQueue.get( moq ) );
-                        MailTS.start();
-                        MailsOnQueue.remove( moq );
+                if( mailsOnQueue.size() > 0 )
+                    for( int moq = 0; moq < mailsOnQueue.size(); moq ++ ){
+                        Sender sender = new Sender();
+                        sender.setQueueTimeout(settings.getIntKey("Queue.timeout"));
+                        sender.setMessage(mailsOnQueue.get(moq));
+                        sender.start();
+                        mailsOnQueue.remove( moq );
                     }
                 sleep( 100 );
             }
@@ -97,17 +106,15 @@ public class MailerDaemon extends Thread implements DatabaseInterface{
      * <I>0</I> --> Bandeja de entrada
      * <I>1</I> --> Correo basura
      */
-    public boolean SaveMail(String user, String data, int folder){
-        boolean _return = false;
+    public boolean persistMail(String user, String data, int folder){
         try{
-            st.execute( "INSERT INTO dr_mails(mail_user, mail_data, mail_date, mail_folder) VALUES('" + user + "', '" + data + "', '" + getDate("yyyy-MM-dd") + "', '" + folder + "')" );
-            log.debugClientThread( this, "Mail Saved", 2 );
-            _return = true;
+            statement.execute(MessageFormat.format("INSERT INTO emails(user_id, message, date, recipient_id) VALUES(''{0}'', ''{1}'', ''{2}'', ''{3}'')", user, data, getDate("yyyy-MM-dd"), folder));
+            log.debug(this, "Mail Saved", Logger.Level.INFO);
+            return true;
         }catch(Exception e){
-            log.debugClientThread( this, e, 1);
-            _return = false;
+            log.debug(this, e, Logger.Level.WARNING);
         }
-        return _return;
+        return false;
     }
     
     /**
@@ -127,19 +134,19 @@ public class MailerDaemon extends Thread implements DatabaseInterface{
     /**
      * Agrega un mensaje a la lista de correos a enviar
      * @param msg el mensage a enviar
-     * @see Message
+     * @see Email
      */
-    public void addMailToSend( Message msg ) {
-        MailsToSend.add( msg );
+    public void addMailToSend( Email msg ) {
+        mailsToSend.add(msg);
     }
     
     /**
      * Agrega un mensaje a la lista de correos en espera
      * @param msg el mensage a enviar
-     * @see Message
+     * @see Email
      */
-    public void addMailOnQueue( Message msg ) {
-        MailsOnQueue.add( msg );
+    public void addMailOnQueue( Email msg ) {
+        mailsOnQueue.add(msg);
     }
     
     /**
@@ -147,8 +154,8 @@ public class MailerDaemon extends Thread implements DatabaseInterface{
      * @param st el asentamiento de la base de datos
      */
     @SuppressWarnings("static-access")
-    public void dbStatement(java.sql.Statement st) {
-        this.st = st;
+    public void setStatement(java.sql.Statement st) {
+        this.statement = st;
     }
     
 }

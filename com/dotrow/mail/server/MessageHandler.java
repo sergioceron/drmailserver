@@ -1,3 +1,11 @@
+/*
+ * Copyright DotRow.com (c) 2012.
+ *
+ * Este programa se distribuye segun la licencia GPL v.2 o posteriores y no
+ * tiene garantias de ningun tipo. Puede obtener una copia de la licencia GPL o
+ * ponerse en contacto con la Free Software Foundation en http://www.gnu.org
+ */
+
 package com.dotrow.mail.server;
 /*
  * MessageHandler.java
@@ -6,13 +14,15 @@ package com.dotrow.mail.server;
  */
 
 
-import java.sql.*;
-import java.util.*;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.text.MessageFormat;
+import java.util.Vector;
 /**
  *
  * @author Sergio Ceron Figueroa
  */
-public class MessageHandler implements DatabaseInterface {
+public class MessageHandler implements DatabaseConnection {
     
     private static MessageHandler _instance = null;
     
@@ -20,10 +30,10 @@ public class MessageHandler implements DatabaseInterface {
     private Logger log = Logger.getInstance();
     
     /** Thread client */
-    private static Thread tClient = null;
+    private static Thread client = null;
     
     /** Database statement */
-    private static Statement st = null;
+    private static Statement statement = null;
     
     /** Creates a new instance of MessageHandler */
     private MessageHandler() {}
@@ -42,7 +52,7 @@ public class MessageHandler implements DatabaseInterface {
      * @param t Thread for child message handler
      */
     final static public MessageHandler getMessageHandler( Thread t ){
-        tClient = t;
+        client = t;
         return _instance != null ? _instance : new MessageHandler();
     }
     
@@ -57,15 +67,15 @@ public class MessageHandler implements DatabaseInterface {
         try{
             String UserMail = UserHandler.getMailByAlias( UserAlias  );
             // Count all messages no readed
-            ResultSet rs = st.executeQuery( "SELECT * FROM dr_mails WHERE mail_user = '" + UserMail + "' and mail_read = 0 and mail_folder =" + folder );
+            ResultSet rs = statement.executeQuery(MessageFormat.format("SELECT * FROM emails WHERE user_id = ''{0}'' and read = 0 and recipient_id ={1}", UserMail, folder));
             while( rs.next() ){
-                Message msg = new Message();
-                msg.setId( rs.getInt( "mail_id" ) );
-                msg.setData( rs.getString( "mail_data" ) );
+                Email msg = new Email();
+                msg.setId( rs.getInt("id") );
+                msg.setData( rs.getString("message") );
                 Messages.add( msg );
             }
-        }catch( Exception e ){
-            log.debugClientThread( tClient, e, 1 );
+        }catch( Exception e) {
+            log.debug(client, e, Logger.Level.WARNING);
             e.printStackTrace();
         }
         return Messages;
@@ -82,11 +92,11 @@ public class MessageHandler implements DatabaseInterface {
     public boolean deleteMessage( int i , Vector Messages ){
         boolean _return = false;
         try{
-            Message msg = ( Message )Messages.get(i);
-            st.execute( "UPDATE dr_mails SET mail_read = 1 WHERE mail_id = " + msg.getId() );
+            Email msg = (Email)Messages.get(i);
+            statement.execute(MessageFormat.format("UPDATE emails SET read = 1 WHERE id = {0}", msg.getId()));
             _return = true;
         }catch(Exception e){
-            log.debugClientThread( tClient, e, 1 );
+            log.debug(client, e, Logger.Level.WARNING);
         }
         return _return;
     }
@@ -102,10 +112,10 @@ public class MessageHandler implements DatabaseInterface {
         boolean _return = false;
         try{
             String UserMail = UserHandler.getMailByAlias( UserAlias  );
-            st.execute( "UPDATE dr_mails SET mail_read = 0 WHERE mail_user = '" + UserMail  + "'" );
+            statement.execute(MessageFormat.format("UPDATE emails SET read = 0 WHERE user_id = ''{0}''", UserMail));
             _return = true;
         }catch(Exception e){
-            log.debugClientThread( tClient, e, 1 );
+            log.debug(client, e, Logger.Level.WARNING);
         }
         return _return;
     }
@@ -119,11 +129,11 @@ public class MessageHandler implements DatabaseInterface {
         long MessagesOctet = 0;
         try{
             for( int i = 0; i< Messages.size(); i++ ){
-                Message msg = ( Message )Messages.get( i );
+                Email msg = (Email)Messages.get( i );
                 MessagesOctet += msg.getSize();
             }
         }catch( Exception e ){
-            log.debugClientThread( tClient, e, 1 );
+            log.debug(client, e, Logger.Level.WARNING);
             e.printStackTrace();
         }
         return MessagesOctet;
@@ -133,8 +143,8 @@ public class MessageHandler implements DatabaseInterface {
      * Get a database statement
      * @param st Database statement
      */
-    public void dbStatement(java.sql.Statement st) {
-        MessageHandler.st = st;
+    public void setStatement(java.sql.Statement st) {
+        MessageHandler.statement = st;
     }
     
 }

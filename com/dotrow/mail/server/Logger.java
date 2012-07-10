@@ -1,3 +1,11 @@
+/*
+ * Copyright DotRow.com (c) 2012.
+ *
+ * Este programa se distribuye segun la licencia GPL v.2 o posteriores y no
+ * tiene garantias de ningun tipo. Puede obtener una copia de la licencia GPL o
+ * ponerse en contacto con la Free Software Foundation en http://www.gnu.org
+ */
+
 package com.dotrow.mail.server;
 /*
  * Logger.java
@@ -5,20 +13,34 @@ package com.dotrow.mail.server;
  * Created on 13 de junio de 2006, 15:58
  */
 
+import com.dotrow.mail.server.util.VT100;
+
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.util.Date;
 
 public class Logger {
-	
-	public static enum LEVEL {ERROR, WARNING, INFO};
+
     /**
      * Tipos de error segun su prioridad
      */
-    final static private String MSG_ERROR   = "Error : ";
-    final static private String MSG_WARNING = "Warning : ";
-    final static private String MSG_INFO    = "Info : ";
+	public static enum Level { 
+        ERROR   ("ERROR"),
+        WARNING ("WARN "),
+        INFO    ("INFO ");
+
+        private String key;
+
+        private Level(String key){
+            this.key = key;
+        }
+        
+        public String getKey(){
+            return key;
+        }
+    };
+
     /**
      * La instacia que sera creada y guardada en memoria
      */
@@ -32,6 +54,8 @@ public class Logger {
      */
     static private DataOutputStream dos = null;
     
+    private VT100 consola;
+    
     /** Crea una nueva instacia y abre el archivo donde se guardara el log */
     private Logger() {
         try{
@@ -39,6 +63,7 @@ public class Logger {
         }catch( Exception e ){
             e.printStackTrace();
         }
+        consola = new VT100(System.out);
     }
     
     /**
@@ -76,7 +101,7 @@ public class Logger {
      * Almacena los mensajes producidos por un cliente y los imprime en la consola
      * @param ct Thread la tarea que produce el mensaje
      * @param trace el mensaje que se imprimira, puede ser un string o una excepcion
-     * @param priority la prioridad del mensaje
+     * @param level la prioridad del mensaje
      * <Ul>
      *    <li>
      *        0 --> Error
@@ -91,23 +116,27 @@ public class Logger {
      *    Logger.getInstace().TDebug(this, "show info", 2 );
      * </CODE>
      */
-    public void debugClientThread(Thread ct, Object trace, int priority){
+    public void debug(Thread ct, Object trace, Level level){
         Date date = new Date();
         try{
-            switch( priority ){
-                case 0:
-                    System.out.println( ct + "["+ date +"] --> " + MSG_ERROR + trace);
-                    writeLog( ct + "["+ date +"] --> " + MSG_ERROR + trace );
+            consola.setColor(VT100.Color.WHITE);
+            switch( level ){
+                case ERROR:
+                    consola.setBackground(VT100.Color.RED);
                     break;
-                case 1:
-                    System.out.println( ct + "["+ date +"] --> " + MSG_WARNING + trace);
-                    writeLog( ct + "["+ date +"] --> " + MSG_WARNING + trace );
+                case WARNING:
+                    consola.setBackground(VT100.Color.YELLOW);
                     break;
-                case 2:
-                    System.out.println( ct + "["+ date +"] --> " + MSG_INFO + trace);
-                    writeLog( ct + "["+ date +"] --> " + MSG_INFO + trace );
+                case INFO:
+                    consola.setColor(VT100.Color.BLACK);
+                    consola.setBackground(VT100.Color.GREEN);
                     break;
             }
+            consola.print(String.format("<%s>:", level.getKey()));
+            consola.reset();
+            consola.print( " ["+ ct +"] --> " + trace + "\n");
+            consola.flush();
+            writeLog( ct + "["+ date +"] --> " + level.getKey() + trace );
         }catch( Exception e ){
             e.printStackTrace();
         }
@@ -116,7 +145,7 @@ public class Logger {
     /**
      * Almacena los mensajes producidos por el servidor y los imprime en la consola
      * @param trace el mensaje que se imprimira, puede ser un string o una excepcion
-     * @param priority la prioridad del mensaje
+     * @param level la prioridad del mensaje
      * <Ul>
      *    <li>
      *        0 --> Error
@@ -131,23 +160,27 @@ public class Logger {
      *    Logger.getInstace().SDebug( "show info", 2 );
      * </CODE>
      */
-    public void debugServerThread( Object trace, int priority ){
+    public void debug(Object trace, Level level){
         Date date = new Date();
         try{
-            switch( priority ){
-                case 0:
-                    System.out.println( "Server ["+ date  +"] --> " + MSG_ERROR + trace );
-                    writeLog(  "Server ["+ date  +"] --> " + MSG_ERROR + trace );
+            consola.setColor(VT100.Color.WHITE);
+            switch( level ){
+                case ERROR:
+                    consola.setBackground(VT100.Color.RED);
                     break;
-                case 1:
-                    System.out.println( "Server ["+ date  +"] --> " + MSG_WARNING + trace );
-                    writeLog( "Server ["+ date  +"] --> " + MSG_WARNING + trace );
+                case WARNING:
+                    consola.setBackground(VT100.Color.YELLOW);
                     break;
-                case 2:
-                    System.out.println( "Server ["+ date  +"] --> " + MSG_INFO + trace );
-                    writeLog( "Server ["+ date  +"] --> " + MSG_INFO + trace );
+                case INFO:
+                    consola.setColor(VT100.Color.BLACK);
+                    consola.setBackground(VT100.Color.GREEN);
                     break;
             }
+            consola.print(String.format("<%s>:", level.getKey()));
+            consola.reset();
+            consola.print( " [Server] --> " + trace + "\n" );
+            consola.flush();
+            writeLog(  "Server ["+ date  +"] --> " + level.getKey() + trace );
         }catch( Exception e ){
             e.printStackTrace();
         }

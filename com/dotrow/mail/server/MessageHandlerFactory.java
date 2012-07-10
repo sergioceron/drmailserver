@@ -1,15 +1,23 @@
+/*
+ * Copyright DotRow.com (c) 2012.
+ *
+ * Este programa se distribuye segun la licencia GPL v.2 o posteriores y no
+ * tiene garantias de ningun tipo. Puede obtener una copia de la licencia GPL o
+ * ponerse en contacto con la Free Software Foundation en http://www.gnu.org
+ */
+
 package com.dotrow.mail.server;
 /*
- * Message.java
+ * Email.java
  *
  * Created on 14 de junio de 2006, 11:32
  */
 
-import java.util.*;
-import java.sql.*;
-import java.text.*;
+import java.sql.Statement;
+import java.util.Vector;
+
 /**
- * Message smtp to send or save
+ * Email smtp to send or save
  * @author Sergio Ceron Figueroa
  */
 public class MessageHandlerFactory {
@@ -44,7 +52,7 @@ public class MessageHandlerFactory {
     private String data;
     
     /**
-     * Creates a new instance of Message
+     * Creates a new instance of Email
      * @param _tClient Thread Client
      * Can be any thread
      * @param st Database statement
@@ -72,7 +80,7 @@ public class MessageHandlerFactory {
             this.from = from.trim().substring( i, from.length()-1 ).
             replaceAll("<", "");
         }catch(Exception e){
-            log.debugClientThread(tClient, e, 1);
+            log.debug(tClient, e, Logger.Level.WARNING);
         }
     }
     
@@ -110,7 +118,7 @@ public class MessageHandlerFactory {
             int i = to.indexOf(':') + 2;
             _to = to.trim().substring( i, to.length()-1 ).replaceAll("<", "");
         }catch(Exception e){
-            log.debugClientThread(tClient, e, 1);
+            log.debug(tClient, e, Logger.Level.WARNING);
         }
         return _to;
     }
@@ -125,7 +133,7 @@ public class MessageHandlerFactory {
             this.to.add( to.trim().substring( i, to.length()-1 ).
             replaceAll("<", "") );
         }catch(Exception e){
-            log.debugClientThread(tClient, e, 1);
+            log.debug(tClient, e, Logger.Level.WARNING);
         }
     }
     
@@ -139,7 +147,7 @@ public class MessageHandlerFactory {
     
     /**
      * Data of message.
-     * @param data Message data.
+     * @param data Email data.
      */
     public void setData(String data) {
         this.data = data.replaceAll("'", "`");
@@ -165,30 +173,30 @@ public class MessageHandlerFactory {
                     
                     // filter mail recived, if this has enabled for reciver
                     if( msf.filterMailToSpam( getFrom(), sendTo ) ){
-                        _return = MailerDaemon.getInstance().SaveMail( sendTo, getData(), Message.MSGFOLDER_INBOX );
+                        _return = MailerDaemon.getInstance().persistMail(sendTo, getData(), Email.MSGFOLDER_INBOX);
                     } else {
-                        log.debugClientThread( tClient, "Mail from: " + getFrom() + " to :" + sendTo + " is spam", 2 );
-                        _return = MailerDaemon.getInstance().SaveMail( sendTo, getData(), Message.MSGFOLDER_SPAM );
+                        log.debug(tClient, "Mail from: " + getFrom() + " to :" + sendTo + " is spam", Logger.Level.INFO);
+                        _return = MailerDaemon.getInstance().persistMail(sendTo, getData(), Email.MSGFOLDER_SPAM);
                     }
                 }else{
                     // Add 'Mail to send' to Mailer Daemon and set parameters of message
-                    Message msg = new Message();
+                    Email msg = new Email();
                     msg.setTo( getTo().get( iv ).toString() );
                     msg.setFrom( getFrom() );
                     msg.setData( getData() );
-                    msg.setFolder( Message.MSGFOLDER_INBOX );
-                    msg.setType( Message.MSGTYPE_NORMAL );
+                    msg.setFolder( Email.MSGFOLDER_INBOX );
+                    msg.setType( Email.MSGTYPE_NORMAL );
                     MailerDaemon.getInstance().addMailToSend( msg );
-                    log.debugClientThread( tClient, "Sending Mail", 2 );
+                    log.debug(tClient, "Sending Mail", Logger.Level.INFO);
                     _return = true;
                 }
             }
             /*if user was sent is local, save in folder sents
               if( ld.isLocalDomain( getDomain( getFrom() ) ) &&  !fromEqTo){
-                _return = MailerDaemon.getInstance().SaveMail( getFrom(), getData(), Message.MSGFOLDER_SENTS );
+                _return = MailerDaemon.getInstance().persistMail( getFrom(), getData(), Email.MSGFOLDER_SENTS );
             }*/
         }catch(Exception e){
-            log.debugClientThread(tClient, e, 1);
+            log.debug(tClient, e, Logger.Level.WARNING);
             _return = false;
         }
         return _return;
@@ -199,7 +207,7 @@ public class MessageHandlerFactory {
      * @param sparse mail of user
      * @return Domain of user
      */
-    final protected static String getDomain( String sparse ){
+    public final static String getDomain(String sparse){
         int i = sparse.indexOf('@') + 1;
         return sparse.substring(i);
     }

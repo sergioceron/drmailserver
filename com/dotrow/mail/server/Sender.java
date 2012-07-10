@@ -1,3 +1,11 @@
+/*
+ * Copyright DotRow.com (c) 2012.
+ *
+ * Este programa se distribuye segun la licencia GPL v.2 o posteriores y no
+ * tiene garantias de ningun tipo. Puede obtener una copia de la licencia GPL o
+ * ponerse en contacto con la Free Software Foundation en http://www.gnu.org
+ */
+
 package com.dotrow.mail.server;
 /*
  * Sender.java
@@ -5,9 +13,12 @@ package com.dotrow.mail.server;
  * Created on 16 de junio de 2006, 14:28
  */
 
-import java.util.*;
-import java.net.*;
-import java.io.*;
+import com.dotrow.mail.server.util.NSLookup;
+
+import java.io.DataInputStream;
+import java.io.PrintWriter;
+import java.net.Socket;
+import java.util.Vector;
 /**
  * Sender Service Manager
  * @author Sergio Ceron Figueroa
@@ -15,7 +26,7 @@ import java.io.*;
 public class Sender extends Thread {
     
     private Logger log = Logger.getInstance();
-    private Message msg = null;
+    private Email email = null;
     private static int  QUEUE_TIMEOUT = 0;
     private static int DEF_PORT = 25;
     private int DEF_DNSHOST = 0;
@@ -29,8 +40,8 @@ public class Sender extends Thread {
     }
     
     
-    public void setMessage( Message msg ){
-        this.msg = msg;
+    public void setMessage( Email msg ){
+        this.email = msg;
     }
     
     /**
@@ -48,11 +59,11 @@ public class Sender extends Thread {
         try{
             // sleep thread on first time if is queue
             this.sleep( QUEUE_TIMEOUT );
-            if( msg.getType() == 1 ){ // Mail error
-                MessageError me = null;
-                me = (MessageError) msg;
-                //System.out.println("this message error is " + msg.getError() + " in thread "+ this);
-                MailerDaemon.getInstance().SaveMail( me.getFrom(), me.getUndeliveredMessage() , me.getFolder() );
+            if( email.getType() == 1 ){ // Mail error
+                EmailError me = null;
+                me = (EmailError) email;
+                //System.out.println("this message error is " + email.getError() + " in thread "+ this);
+                MailerDaemon.getInstance().persistMail(me.getFrom(), me.getUndeliveredMessage(), me.getFolder());
             }else{
                 SendMail();
             }
@@ -75,42 +86,42 @@ public class Sender extends Thread {
                         in = new DataInputStream( connection.getInputStream() );
                         out = new PrintWriter( connection.getOutputStream(), true);
                         
-                        log.debugClientThread( this, in.readLine(), 2 );
+                        log.debug(this, in.readLine(), Logger.Level.INFO);
                         
                         out.println( "HELO 189.144.4.75" );
                         if (! ProcessResponse( in.readLine(), 250 ))
                             break;
 
-                        out.println( "MAIL FROM:<" + msg.getFrom() + ">" );
+                        out.println( "MAIL FROM:<" + email.getFrom() + ">" );
                         if (! ProcessResponse( in.readLine(), 250 ))
                             break;
                         
-                        out.println( "RCPT TO:<" + msg.getTo() + ">" );
+                        out.println( "RCPT TO:<" + email.getTo() + ">" );
                         if (! ProcessResponse( in.readLine(), 250 ))
                             break;
-                        
+
                         out.println( "DATA" );
                         if (! ProcessResponse( in.readLine(), 354 ))
                             break;
                         
-                        out.print( msg.getData() );
+                        out.print(email.getData());
                         out.println( "." );
                         if (! ProcessResponse( in.readLine(), 250 ))
                             break;
                         
                         out.println( "QUIT" );
-                        log.debugClientThread( this, in.readLine(), 2 );
-                        //ViewTraffic.getInstance().getData( msg.getData().length() );
+                        log.debug(this, in.readLine(), Logger.Level.INFO);
+                        //ViewTraffic.getInstance().getData( email.getData().length() );
                         break;
                     }
                     // stop connection
                     Destroy();
                 }else{
                     // error host doesnt exist
-                    System.out.println("Error dns mx for host" + msg.getTo());
+                    System.out.println("Error dns mx for host" + email.getTo());
                 }
             }catch(Exception e){
-                log.debugClientThread( this, e, 1);
+                log.debug(this, e, Logger.Level.WARNING);
                 //e.printStackTrace();
                 if( MXHosts() > DEF_DNSHOST ){
                     // return to try connect with another mx server
@@ -119,8 +130,8 @@ public class Sender extends Thread {
                     
                 }else{
                     // if cant connect with mx server save as queue
-                    log.debugClientThread( this, "sending mail to queue", 2 );
-                    MailerDaemon.getInstance().addMailOnQueue( msg );
+                    log.debug(this, "sending mail to queue", Logger.Level.INFO);
+                    MailerDaemon.getInstance().addMailOnQueue(email);
                 }
             }
             return 0;
@@ -133,12 +144,12 @@ public class Sender extends Thread {
         //finalize connection and in/out stream
         try{
             this.running = false;
-            log.debugClientThread( this, "Closing connection", 2);
+            log.debug(this, "Closing connection", Logger.Level.INFO);
             out.close();
             in.close();
             connection.close();
         }catch( Exception e ){
-            log.debugClientThread( this, e, 1);
+            log.debug(this, e, Logger.Level.WARNING);
         }
         
     }
@@ -155,7 +166,7 @@ public class Sender extends Thread {
         try{
             resCode = response.substring( 0, 3 );
             
-            log.debugClientThread( this, response, 2 );
+            log.debug(this, response, Logger.Level.INFO);
             
             if( resCode.equals( ( String.valueOf( hope ) ) )){
                 //debug.TDebug( this, "ok continue", 2 );
@@ -165,32 +176,32 @@ public class Sender extends Thread {
                 // error level 1 only send to queue
                 if( resCode.startsWith( "4" ) ){
                     _return = false;
-                    log.debugClientThread( this, "Error : sending mail to queue", 2 );
-                    MailerDaemon.getInstance().addMailOnQueue( msg );
+                    log.debug(this, "Error : sending mail to queue", Logger.Level.INFO);
+                    MailerDaemon.getInstance().addMailOnQueue(email);
                     
                     // error level 0
                 }else if( resCode.startsWith( "5" ) ){
-                    log.debugClientThread( this, "Fatal error : Sending mail error to sender", 2);
-                    MessageError me = new MessageError();
-                    me.setFrom( msg.getFrom() );
-                    me.setTo( msg.getTo() );
-                    me.setType( Message.MSGTYPE_ERROR );
-                    me.setFolder( Message.MSGFOLDER_INBOX );
-                    me.setError( response );
-                    me.setData( msg.getData() );
+                    log.debug(this, "Fatal error : Sending mail error to sender", Logger.Level.INFO);
+                    EmailError me = new EmailError();
+                    me.setFrom(email.getFrom());
+                    me.setTo( email.getTo());
+                    me.setType(Email.MSGTYPE_ERROR);
+                    me.setFolder( Email.MSGFOLDER_INBOX );
+                    me.setError(response);
+                    me.setData(email.getData());
                     // send mail error
                     MailerDaemon.getInstance().addMailToSend( me );
                     
                     _return = false;
                     // if send another response code or bad sequence
                 }else{
-                    log.debugClientThread( this, resCode + " --> " + hope, 2);
+                    log.debug(this, resCode + " --> " + hope, Logger.Level.INFO);
                     _return = false;
                 }
                 
             }
         }catch(Exception e){
-            log.debugClientThread( this, "e --> " + e, 1 );
+            log.debug(this, "e --> " + e, Logger.Level.WARNING);
             e.printStackTrace();
             Destroy();
             _return = false;
@@ -204,7 +215,7 @@ public class Sender extends Thread {
      */
     private int MXHosts(){
         NSLookup nl = NSLookup.getInstance();
-        Vector mx = nl.getMXHosts( MessageHandlerFactory.getDomain( msg.getTo() ) );
+        Vector mx = nl.getMXHosts(MessageHandlerFactory.getDomain(email.getTo()) );
         if ( mx.size() > 0 )
             return mx.size();
         else
@@ -219,7 +230,7 @@ public class Sender extends Thread {
      */
     private String getMXHost( int  n ){
         NSLookup nl = NSLookup.getInstance();
-        Vector mx = nl.getMXHosts( MessageHandlerFactory.getDomain( msg.getTo() ) );
+        Vector mx = nl.getMXHosts( MessageHandlerFactory.getDomain(email.getTo()) );
         return mx.get( n ).toString();
     }
 }
